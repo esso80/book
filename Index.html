@@ -348,16 +348,15 @@
     let searchQuery = '';
     let isSubmitting = false;
 
-    // 모의(Mock) 도서 데이터 (google.script.run 환경이 아닐 경우 독립 테스트 지원)
+    // Google Apps Script API 배포 엔드포인트 URL
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwxf6loG03-kFhNNX_GuBnnEE_8AtIUS-kXYHkYMdwr6bFMapCxflOBkCK75myEr_-uLA/exec';
+
+    // 기본 4개 도서 데이터 (오프라인 예비용)
     const MOCK_BOOKS = [
-      { id: 'BK-1001', title: '클린 코드: 애자일 소프트웨어 장인 정신', author: '로버트 C. 마틴', status: '대출가능', category: '프로그래밍' },
-      { id: 'BK-1002', title: '리팩터링 2판: 코드 구조를 개선하는 확실한 방법', author: '마틴 파울러', status: '대출중', category: '소프트웨어 공학' },
-      { id: 'BK-1003', title: '실용주의 프로그래머: 숙련자를 위한 개발 안내서', author: '데이비드 토머스, 앤드류 헌트', status: '예약중', category: '개발 실무' },
-      { id: 'BK-1004', title: '객체지향의 사실과 오해: 역할, 책임, 협력 관점에서 본 객체지향', author: '조영호', status: '대출가능', category: '객체지향' },
-      { id: 'BK-1005', title: '모던 자바스크립트 Deep Dive: 자바스크립트의 기본 개념과 동작 원리', author: '이웅모', status: '대출가능', category: '웹 개발' },
-      { id: 'BK-1006', title: 'Do it! 점프 투 파이썬: 라이브러리 예제 편', author: '박응용', status: '대출중', category: '파이썬' },
-      { id: 'BK-1007', title: '그림으로 공부하는 IT 인프라 구조', author: '야마자키 타이지', status: '예약중', category: '인프라/네트워크' },
-      { id: 'BK-1008', title: '도메인 주도 설계 핵심: DDD Distilled', author: '반 버논', status: '대출가능', category: '아키텍처' }
+      { id: 'BK-1001', title: '클린 코드', author: '로버트 C. 마틴', status: '대출가능', category: '프로그래밍' },
+      { id: 'BK-1002', title: '리팩터링 2판', author: '마틴 파울러', status: '대출중', category: '소프트웨어 공학' },
+      { id: 'BK-1003', title: '실용주의 프로그래머', author: '데이비드 토머스', status: '예약중', category: '개발 실무' },
+      { id: 'BK-1004', title: '객체지향의 사실과 오해', author: '조영호', status: '대출가능', category: '객체지향' }
     ];
 
     /**
@@ -384,12 +383,11 @@
       showLoading(true);
       hideError();
 
-      // 새로고침 아이콘 회전 애니메이션
       const refreshIcon = document.getElementById('refreshIcon');
       if (refreshIcon) refreshIcon.classList.add('animate-spin');
 
       if (isGasEnvironment()) {
-        // 실제 Google Apps Script 환경 호출
+        // 실제 Google Apps Script 환경 (HTML Service 내부)
         google.script.run
           .withSuccessHandler((response) => {
             onBookListSuccess(response);
@@ -401,23 +399,22 @@
           })
           .getBookList();
       } else {
-        // 브라우저 단독 실행 / 로컬 테스트용 모의 호출 (400ms 레이턴시 재현)
-        setTimeout(() => {
-          // 로컬 스토리지에 캐시된 데이터가 있다면 활용
-          const saved = localStorage.getItem('lib_mock_books');
-          if (saved) {
-            try {
-              allBooks = JSON.parse(saved);
-            } catch (e) {
-              allBooks = [...MOCK_BOOKS];
+        // 웹 브라우저 단독 실행 시: 구글 시트 배포 URL로 직접 실시간 조회
+        fetch(GAS_API_URL + '?action=getBooks')
+          .then(res => res.json())
+          .then(result => {
+            if (result && result.success && Array.isArray(result.data)) {
+              onBookListSuccess(result.data);
+            } else {
+              onBookListSuccess(MOCK_BOOKS);
             }
-          } else {
-            allBooks = [...MOCK_BOOKS];
-            localStorage.setItem('lib_mock_books', JSON.stringify(allBooks));
-          }
-          onBookListSuccess(allBooks);
-          if (refreshIcon) refreshIcon.classList.remove('animate-spin');
-        }, 400);
+          })
+          .catch(() => {
+            onBookListSuccess(MOCK_BOOKS);
+          })
+          .finally(() => {
+            if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+          });
       }
     }
 
@@ -686,20 +683,22 @@
           })
           .reserveBook(bookId, userName, userEmail);
       } else {
-        // 로컬/테스트 환경 모의 처리
-        setTimeout(() => {
-          setSubmitLoading(false);
-          // 대상 도서 상태를 '예약중'으로 변경
-          const targetIndex = allBooks.findIndex(b => b.id === bookId);
-          if (targetIndex !== -1) {
-            allBooks[targetIndex].status = '예약중';
-            localStorage.setItem('lib_mock_books', JSON.stringify(allBooks));
+        // 웹 브라우저 단독 실행 시: 실제 GAS API로 예약 요청 전송
+        const reserveUrl = GAS_API_URL + '?action=reserve&bookId=' + encodeURIComponent(bookId) + 
+          '&userName=' + encodeURIComponent(userName) + 
+          '&userEmail=' + encodeURIComponent(userEmail);
+
+        fetch(reserveUrl)
+          .then(res => res.json())
+          .then(result => {
+            setSubmitLoading(false);
             closeModal();
-            handleReservationResponse({ success: true, message: `[${userName}]님의 도서 예약이 성공적으로 완료되었습니다.` }, true);
-          } else {
-            handleReservationResponse({ success: false, message: '도서를 찾을 수 없습니다.' }, false);
-          }
-        }, 600);
+            handleReservationResponse(result, true);
+          })
+          .catch(err => {
+            setSubmitLoading(false);
+            handleReservationResponse(err, false);
+          });
       }
     }
 
