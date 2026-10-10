@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>스마트 도서관 도서 예약 시스템</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              100: '#e0effe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              800: '#0c4a6e',
+              900: '#082f49'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Custom Inline CSS for smooth interaction and typography -->
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Modal Animation */
+    .modal-backdrop {
+      transition: opacity 0.25s ease-out;
+    }
+    .modal-content {
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease-out;
+    }
+
+    /* Shimmer loading skeleton */
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+
+  <!-- ================= 상단 네비게이션 헤더 ================= -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      
+      <!-- 도서관 로고 및 타이틀 -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center text-white shadow-sm shadow-sky-600/30">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-none">스마트 도서관</h1>
+          <p class="text-xs text-slate-500 mt-1">도서 대출 예약 포털</p>
+        </div>
+      </div>
+
+      <!-- 상단 액션 버튼 -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <button id="refreshBtn" onclick="fetchBookList()" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500/20 active:scale-95" title="새로고침">
+          <svg id="refreshIcon" class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span class="hidden sm:inline">새로고침</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= 메인 본문 콘텐츠 ================= -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
+    <!-- 배너 / 헤더 인트로 -->
+    <section class="mb-6 sm:mb-8">
+      <div class="bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+        <div class="absolute -right-12 -bottom-12 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="relative z-10 max-w-2xl">
+          <span class="inline-block px-2.5 py-1 text-xs font-semibold bg-sky-500/20 text-sky-300 rounded-md mb-3 border border-sky-400/20">
+            Google Apps Script 연동 시스템
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mb-2">
+            원하는 도서를 온라인으로 즉시 예약하세요
+          </h2>
+          <p class="text-sm sm:text-base text-slate-300">
+            실시간 대출 가능 상태를 확인하고, 간편한 정보 입력으로 책을 바로 예약할 수 있습니다.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 검색 및 필터 컨트롤 바 -->
+    <section class="bg-white rounded-xl border border-slate-200 p-4 mb-6 shadow-sm">
+      <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        
+        <!-- 검색창 -->
+        <div class="relative flex-1">
+          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input 
+            type="text" 
+            id="searchInput" 
+            oninput="handleSearchFilter()"
+            placeholder="도서명, 저자, 도서 ID로 검색..." 
+            class="w-full pl-10 pr-9 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-transparent transition"
+          >
+          <button 
+            id="clearSearchBtn" 
+            onclick="clearSearch()" 
+            class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+            title="검색어 지우기"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- 상태 필터 탭 -->
+        <div class="flex items-center bg-slate-100 p-1 rounded-lg gap-1 shrink-0 overflow-x-auto">
+          <button onclick="setStatusFilter('ALL')" id="filter-ALL" class="filter-tab px-3 py-1.5 text-xs font-semibold rounded-md bg-white text-slate-900 shadow-sm transition">전체</button>
+          <button onclick="setStatusFilter('대출가능')" id="filter-대출가능" class="filter-tab px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 transition">대출가능</button>
+          <button onclick="setStatusFilter('예약중')" id="filter-예약중" class="filter-tab px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 transition">예약중</button>
+          <button onclick="setStatusFilter('대출중')" id="filter-대출중" class="filter-tab px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 transition">대출중</button>
+        </div>
+
+      </div>
+
+      <!-- 현황 카운터 정보 -->
+      <div class="flex items-center justify-between text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100">
+        <span id="counterInfo">도서 목록을 불러오는 중...</span>
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> 대출가능</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span> 예약중</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span> 대출중</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 도서 카드 그리드 목록 ================= -->
+    <section>
+      <!-- 로딩 스켈레톤 (초기 로딩 시 노출) -->
+      <div id="loadingState" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+          <div class="skeleton h-5 w-20 rounded"></div>
+          <div class="skeleton h-6 w-3/4 rounded"></div>
+          <div class="skeleton h-4 w-1/2 rounded"></div>
+          <div class="skeleton h-10 w-full rounded-lg mt-4"></div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+          <div class="skeleton h-5 w-20 rounded"></div>
+          <div class="skeleton h-6 w-3/4 rounded"></div>
+          <div class="skeleton h-4 w-1/2 rounded"></div>
+          <div class="skeleton h-10 w-full rounded-lg mt-4"></div>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+          <div class="skeleton h-5 w-20 rounded"></div>
+          <div class="skeleton h-6 w-3/4 rounded"></div>
+          <div class="skeleton h-4 w-1/2 rounded"></div>
+          <div class="skeleton h-10 w-full rounded-lg mt-4"></div>
+        </div>
+      </div>
+
+      <!-- 에러 상태 안내 -->
+      <div id="errorState" class="hidden bg-rose-50 border border-rose-200 rounded-xl p-8 text-center my-6">
+        <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-rose-900 mb-1">도서 목록을 불러오지 못했습니다</h3>
+        <p id="errorMessage" class="text-sm text-rose-700 mb-4">네트워크 상태를 확인하거나 잠시 후 다시 시도해 주세요.</p>
+        <button onclick="fetchBookList()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-semibold transition">
+          다시 시도하기
+        </button>
+      </div>
+
+      <!-- 빈 결과 상태 안내 -->
+      <div id="emptyState" class="hidden bg-white border border-slate-200 rounded-xl p-12 text-center my-6 shadow-sm">
+        <div class="w-14 h-14 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-slate-800 mb-1">검색 조건에 맞는 도서가 없습니다</h3>
+        <p class="text-sm text-slate-500 mb-4">다른 검색어를 입력하시거나 필터를 해제해 보세요.</p>
+        <button onclick="resetFilters()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition">
+          필터 초기화
+        </button>
+      </div>
+
+      <!-- 실제 도서 카드 컨테이너 -->
+      <div id="bookGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <!-- JS에서 동적으로 도서 카드가 주입됩니다 -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= 예약 모달 (Modal) ================= -->
+  <div id="reserveModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <!-- 배경 딤 레이어 -->
+    <div onclick="closeModal()" class="modal-backdrop fixed inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity opacity-0"></div>
+
+    <div class="flex min-h-full items-center justify-center p-4">
+      <!-- 모달 팝업 본체 -->
+      <div class="modal-content relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden transform scale-95 opacity-0">
+        
+        <!-- 모달 헤더 -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h3 class="text-base font-bold text-slate-900">도서 예약 신청</h3>
+          </div>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition" title="닫기">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- 모달 폼 바디 -->
+        <form id="reserveForm" onsubmit="submitReservation(event)" class="p-6 space-y-4">
+          
+          <!-- 선택된 도서 요약 카드 -->
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <div class="text-[11px] font-semibold text-sky-700 uppercase tracking-wider mb-1" id="modalBookId">
+              BOOK ID: -
+            </div>
+            <h4 class="text-base font-bold text-slate-900 line-clamp-2" id="modalBookTitle">
+              도서 제목
+            </h4>
+            <div class="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+              <span>저자:</span>
+              <span class="font-medium text-slate-700" id="modalBookAuthor">-</span>
+            </div>
+          </div>
+
+          <!-- 숨김 bookId 필드 -->
+          <input type="hidden" id="formBookId" name="bookId">
+
+          <!-- 신청자 성명 -->
+          <div>
+            <label for="userName" class="block text-xs font-semibold text-slate-700 mb-1.5">
+              신청자 이름 <span class="text-rose-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="userName" 
+              name="userName" 
+              required 
+              placeholder="예: 홍길동"
+              class="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition"
+            >
+          </div>
+
+          <!-- 신청자 이메일 -->
+          <div>
+            <label for="userEmail" class="block text-xs font-semibold text-slate-700 mb-1.5">
+              이메일 주소 <span class="text-rose-500">*</span>
+            </label>
+            <input 
+              type="email" 
+              id="userEmail" 
+              name="userEmail" 
+              required 
+              placeholder="예: user@example.com"
+              class="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition"
+            >
+            <p class="text-[11px] text-slate-400 mt-1">예약 완료 및 대출 승인 안내가 해당 이메일로 전송됩니다.</p>
+          </div>
+
+          <!-- 유의사항 안내 -->
+          <div class="bg-sky-50 border border-sky-100 rounded-lg p-3 text-xs text-sky-800 leading-relaxed">
+            <span class="font-semibold">안내:</span> 예약 신청 후 도서관 운영일 기준 3일 이내에 미수령 시 자동 취소될 수 있습니다.
+          </div>
+
+          <!-- 모달 푸터 버튼 액션 -->
+          <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+            <button 
+              type="button" 
+              onclick="closeModal()" 
+              class="px-4 py-2.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+            >
+              취소
+            </button>
+            <button 
+              type="submit" 
+              id="submitBtn" 
+              class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 active:bg-sky-800 rounded-lg shadow-sm shadow-sky-600/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg id="submitSpinner" class="hidden animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span id="submitBtnText">예약 확정하기</span>
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 토스트 알림 컴포넌트 ================= -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- ================= 푸터 ================= -->
+  <footer class="mt-auto border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-400">
+    <div class="max-w-6xl mx-auto px-4">
+      <p>스마트 도서관 대출 예약 시스템 · Powered by Google Apps Script</p>
+    </div>
+  </footer>
+
+  <!-- ================= 인라인 자바스크립트 로직 ================= -->
+  <script>
+    // 상태 관리 변수
+    let allBooks = [];
+    let currentFilter = 'ALL';
+    let searchQuery = '';
+    let isSubmitting = false;
+
+    // 모의(Mock) 도서 데이터 (google.script.run 환경이 아닐 경우 독립 테스트 지원)
+    const MOCK_BOOKS = [
+      { id: 'BK-1001', title: '클린 코드: 애자일 소프트웨어 장인 정신', author: '로버트 C. 마틴', status: '대출가능', category: '프로그래밍' },
+      { id: 'BK-1002', title: '리팩터링 2판: 코드 구조를 개선하는 확실한 방법', author: '마틴 파울러', status: '대출중', category: '소프트웨어 공학' },
+      { id: 'BK-1003', title: '실용주의 프로그래머: 숙련자를 위한 개발 안내서', author: '데이비드 토머스, 앤드류 헌트', status: '예약중', category: '개발 실무' },
+      { id: 'BK-1004', title: '객체지향의 사실과 오해: 역할, 책임, 협력 관점에서 본 객체지향', author: '조영호', status: '대출가능', category: '객체지향' },
+      { id: 'BK-1005', title: '모던 자바스크립트 Deep Dive: 자바스크립트의 기본 개념과 동작 원리', author: '이웅모', status: '대출가능', category: '웹 개발' },
+      { id: 'BK-1006', title: 'Do it! 점프 투 파이썬: 라이브러리 예제 편', author: '박응용', status: '대출중', category: '파이썬' },
+      { id: 'BK-1007', title: '그림으로 공부하는 IT 인프라 구조', author: '야마자키 타이지', status: '예약중', category: '인프라/네트워크' },
+      { id: 'BK-1008', title: '도메인 주도 설계 핵심: DDD Distilled', author: '반 버논', status: '대출가능', category: '아키텍처' }
+    ];
+
+    /**
+     * Google Apps Script 환경 감지 헬퍼
+     * 실제 GAS WebApp으로 배포되면 window.google.script.run 객체가 존재합니다.
+     */
+    function isGasEnvironment() {
+      return typeof google !== 'undefined' && 
+             typeof google.script !== 'undefined' && 
+             typeof google.script.run !== 'undefined';
+    }
+
+    /**
+     * 페이지 로드 시 도서 목록 호출
+     */
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchBookList();
+    });
+
+    /**
+     * 도서 목록 불러오기 (요구사항 2: google.script.run.getBookList() 호출)
+     */
+    function fetchBookList() {
+      showLoading(true);
+      hideError();
+
+      // 새로고침 아이콘 회전 애니메이션
+      const refreshIcon = document.getElementById('refreshIcon');
+      if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
+      if (isGasEnvironment()) {
+        // 실제 Google Apps Script 환경 호출
+        google.script.run
+          .withSuccessHandler((response) => {
+            onBookListSuccess(response);
+            if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+          })
+          .withFailureHandler((error) => {
+            onBookListFailure(error);
+            if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+          })
+          .getBookList();
+      } else {
+        // 브라우저 단독 실행 / 로컬 테스트용 모의 호출 (400ms 레이턴시 재현)
+        setTimeout(() => {
+          // 로컬 스토리지에 캐시된 데이터가 있다면 활용
+          const saved = localStorage.getItem('lib_mock_books');
+          if (saved) {
+            try {
+              allBooks = JSON.parse(saved);
+            } catch (e) {
+              allBooks = [...MOCK_BOOKS];
+            }
+          } else {
+            allBooks = [...MOCK_BOOKS];
+            localStorage.setItem('lib_mock_books', JSON.stringify(allBooks));
+          }
+          onBookListSuccess(allBooks);
+          if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+        }, 400);
+      }
+    }
+
+    /**
+     * getBookList 성공 핸들러
+     */
+    function onBookListSuccess(data) {
+      showLoading(false);
+      try {
+        allBooks = typeof data === 'string' ? JSON.parse(data) : (data || []);
+      } catch (e) {
+        allBooks = data || [];
+      }
+      renderFilteredBooks();
+    }
+
+    /**
+     * getBookList 실패 핸들러
+     */
+    function onBookListFailure(error) {
+      showLoading(false);
+      const errBox = document.getElementById('errorState');
+      const errMsg = document.getElementById('errorMessage');
+      if (errBox && errMsg) {
+        errMsg.textContent = (error && error.message) ? error.message : '서버와 통신하는 중 오류가 발생했습니다.';
+        errBox.classList.remove('hidden');
+      }
+      document.getElementById('bookGrid').classList.add('hidden');
+      showToast('error', '도서 목록을 불러오지 못했습니다.');
+    }
+
+    /**
+     * 필터링 및 검색 적용 후 카드 렌더링
+     */
+    function renderFilteredBooks() {
+      const filtered = allBooks.filter(book => {
+        // 상태 필터 체크
+        const matchStatus = (currentFilter === 'ALL') || (book.status === currentFilter);
+        
+        // 검색어 필터 체크 (ID, 제목, 저자)
+        const q = searchQuery.trim().toLowerCase();
+        const matchQuery = !q || 
+          (book.title && book.title.toLowerCase().includes(q)) ||
+          (book.author && book.author.toLowerCase().includes(q)) ||
+          (book.id && book.id.toLowerCase().includes(q));
+
+        return matchStatus && matchQuery;
+      });
+
+      // 카운터 텍스트 업데이트
+      updateCounter(filtered.length, allBooks.length);
+
+      const grid = document.getElementById('bookGrid');
+      const emptyState = document.getElementById('emptyState');
+
+      if (filtered.length === 0) {
+        grid.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      grid.classList.remove('hidden');
+      grid.innerHTML = '';
+
+      filtered.forEach(book => {
+        grid.appendChild(createBookCard(book));
+      });
+    }
+
+    /**
+     * 도서 카드 DOM 생성
+     * 요구사항:
+     * - 도서 ID, 제목, 저자, 대출 상태 바짓값(대출가능/예약중/대출중)
+     * - '대출가능'인 경우 [예약하기] 활성화
+     * - '예약중' 또는 '대출중'인 경우 비활성화(disabled)
+     */
+    function createBookCard(book) {
+      const card = document.createElement('div');
+      card.className = "bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between";
+
+      // 상태별 스타일 및 버튼 속성 산출
+      let badgeHtml = '';
+      let buttonHtml = '';
+      const isAvailable = (book.status === '대출가능');
+
+      if (book.status === '대출가능') {
+        badgeHtml = `
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            대출가능
+          </span>
+        `;
+        buttonHtml = `
+          <button 
+            type="button"
+            onclick="openReserveModal('${escapeHtml(book.id)}', '${escapeHtml(book.title)}', '${escapeHtml(book.author)}')"
+            class="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 text-xs sm:text-sm font-semibold text-white bg-sky-600 hover:bg-sky-700 active:scale-[0.98] rounded-lg shadow-sm shadow-sky-600/20 transition focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            예약하기
+          </button>
+        `;
+      } else if (book.status === '예약중') {
+        badgeHtml = `
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            예약중
+          </span>
+        `;
+        buttonHtml = `
+          <button 
+            type="button"
+            disabled
+            class="w-full py-2.5 px-4 text-xs sm:text-sm font-medium text-slate-400 bg-slate-100 rounded-lg cursor-not-allowed border border-slate-200/60"
+            title="이미 다른 이용자가 예약한 도서입니다."
+          >
+            예약 불가 (예약중)
+          </button>
+        `;
+      } else { // 대출중
+        badgeHtml = `
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+            대출중
+          </span>
+        `;
+        buttonHtml = `
+          <button 
+            type="button"
+            disabled
+            class="w-full py-2.5 px-4 text-xs sm:text-sm font-medium text-slate-400 bg-slate-100 rounded-lg cursor-not-allowed border border-slate-200/60"
+            title="현재 대출 중인 도서입니다."
+          >
+            대출 불가 (대출중)
+          </button>
+        `;
+      }
+
+      card.innerHTML = `
+        <div>
+          <!-- 상단: 도서 ID 및 상태 배지 -->
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <span class="text-xs font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+              ${escapeHtml(book.id || 'N/A')}
+            </span>
+            ${badgeHtml}
+          </div>
+
+          <!-- 도서 제목 -->
+          <h3 class="text-base font-bold text-slate-900 tracking-tight leading-snug line-clamp-2 mb-2" title="${escapeHtml(book.title)}">
+            ${escapeHtml(book.title)}
+          </h3>
+
+          <!-- 도서 저자 및 상세 -->
+          <div class="space-y-1 mb-5">
+            <div class="flex items-center gap-1.5 text-xs text-slate-600">
+              <svg class="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7 7z" />
+              </svg>
+              <span class="font-medium text-slate-700 truncate">${escapeHtml(book.author || '저자 미상')}</span>
+            </div>
+            ${book.category ? `
+              <div class="text-[11px] text-slate-400 pl-5">
+                분류: ${escapeHtml(book.category)}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- 하단: 예약 버튼 영역 -->
+        <div class="pt-3 border-t border-slate-100">
+          ${buttonHtml}
+        </div>
+      `;
+
+      return card;
+    }
+
+    /**
+     * 예약 모달 열기
+     */
+    function openReserveModal(bookId, bookTitle, bookAuthor) {
+      const modal = document.getElementById('reserveModal');
+      const backdrop = modal.querySelector('.modal-backdrop');
+      const content = modal.querySelector('.modal-content');
+
+      document.getElementById('formBookId').value = bookId;
+      document.getElementById('modalBookId').textContent = 'BOOK ID: ' + bookId;
+      document.getElementById('modalBookTitle').textContent = bookTitle;
+      document.getElementById('modalBookAuthor').textContent = bookAuthor;
+
+      // 폼 초기화
+      document.getElementById('userName').value = '';
+      document.getElementById('userEmail').value = '';
+
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        backdrop.classList.remove('opacity-0');
+        backdrop.classList.add('opacity-100');
+        content.classList.remove('scale-95', 'opacity-0');
+        content.classList.add('scale-100', 'opacity-100');
+        document.getElementById('userName').focus();
+      }, 10);
+    }
+
+    /**
+     * 예약 모달 닫기
+     */
+    function closeModal() {
+      if (isSubmitting) return; // 전송 중일 때는 닫기 방지
+
+      const modal = document.getElementById('reserveModal');
+      const backdrop = modal.querySelector('.modal-backdrop');
+      const content = modal.querySelector('.modal-content');
+
+      backdrop.classList.remove('opacity-100');
+      backdrop.classList.add('opacity-0');
+      content.classList.remove('scale-100', 'opacity-100');
+      content.classList.add('scale-95', 'opacity-0');
+
+      setTimeout(() => {
+        modal.classList.add('hidden');
+      }, 200);
+    }
+
+    /**
+     * 예약 폼 제출 핸들러 (요구사항 2: google.script.run.reserveBook(bookId, userName, userEmail) 호출)
+     */
+    function submitReservation(e) {
+      e.preventDefault();
+      if (isSubmitting) return;
+
+      const bookId = document.getElementById('formBookId').value;
+      const userName = document.getElementById('userName').value.trim();
+      const userEmail = document.getElementById('userEmail').value.trim();
+
+      if (!bookId || !userName || !userEmail) {
+        showToast('error', '이름과 이메일을 올바르게 입력해 주세요.');
+        return;
+      }
+
+      // 간단한 이메일 정규식 검증
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(userEmail)) {
+        showToast('error', '유효한 이메일 형식을 입력해 주세요.');
+        document.getElementById('userEmail').focus();
+        return;
+      }
+
+      setSubmitLoading(true);
+
+      if (isGasEnvironment()) {
+        // 실제 Google Apps Script 서버 함수 호출
+        google.script.run
+          .withSuccessHandler((response) => {
+            setSubmitLoading(false);
+            closeModal();
+            handleReservationResponse(response, true);
+          })
+          .withFailureHandler((error) => {
+            setSubmitLoading(false);
+            handleReservationResponse(error, false);
+          })
+          .reserveBook(bookId, userName, userEmail);
+      } else {
+        // 로컬/테스트 환경 모의 처리
+        setTimeout(() => {
+          setSubmitLoading(false);
+          // 대상 도서 상태를 '예약중'으로 변경
+          const targetIndex = allBooks.findIndex(b => b.id === bookId);
+          if (targetIndex !== -1) {
+            allBooks[targetIndex].status = '예약중';
+            localStorage.setItem('lib_mock_books', JSON.stringify(allBooks));
+            closeModal();
+            handleReservationResponse({ success: true, message: `[${userName}]님의 도서 예약이 성공적으로 완료되었습니다.` }, true);
+          } else {
+            handleReservationResponse({ success: false, message: '도서를 찾을 수 없습니다.' }, false);
+          }
+        }, 600);
+      }
+    }
+
+    /**
+     * 예약 결과 응답 처리 및 새로고침
+     */
+    function handleReservationResponse(response, isSuccessCall) {
+      if (isSuccessCall) {
+        // 성공 응답 객체인지 확인 (GAS에서 { success: true, message: '...' } 반환 권장)
+        if (response && response.success === false) {
+          showToast('error', response.message || '도서 예약에 실패하였습니다.');
+        } else {
+          const msg = (response && response.message) ? response.message : '도서 예약이 성공적으로 완료되었습니다!';
+          showToast('success', msg);
+          // 요구사항: 성공 시 도서 목록 새로고침
+          fetchBookList();
+        }
+      } else {
+        const errorMsg = (response && response.message) ? response.message : '예약 처리 중 서버 오류가 발생했습니다.';
+        showToast('error', errorMsg);
+      }
+    }
+
+    /**
+     * 제출 버튼 로딩 스피너 제어
+     */
+    function setSubmitLoading(loading) {
+      isSubmitting = loading;
+      const btn = document.getElementById('submitBtn');
+      const spinner = document.getElementById('submitSpinner');
+      const text = document.getElementById('submitBtnText');
+
+      if (loading) {
+        btn.disabled = true;
+        spinner.classList.remove('hidden');
+        text.textContent = '처리 중...';
+      } else {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+        text.textContent = '예약 확정하기';
+      }
+    }
+
+    /**
+     * 상태 필터 탭 제어
+     */
+    function setStatusFilter(status) {
+      currentFilter = status;
+      document.querySelectorAll('.filter-tab').forEach(tab => {
+        tab.className = "filter-tab px-3 py-1.5 text-xs font-medium rounded-md text-slate-600 hover:text-slate-900 transition";
+      });
+      const activeTab = document.getElementById('filter-' + status);
+      if (activeTab) {
+        activeTab.className = "filter-tab px-3 py-1.5 text-xs font-semibold rounded-md bg-white text-slate-900 shadow-sm transition";
+      }
+      renderFilteredBooks();
+    }
+
+    /**
+     * 검색 입력 처리
+     */
+    function handleSearchFilter() {
+      const input = document.getElementById('searchInput');
+      searchQuery = input.value;
+      const clearBtn = document.getElementById('clearSearchBtn');
+      if (searchQuery.length > 0) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+      }
+      renderFilteredBooks();
+    }
+
+    function clearSearch() {
+      const input = document.getElementById('searchInput');
+      input.value = '';
+      searchQuery = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      input.focus();
+      renderFilteredBooks();
+    }
+
+    function resetFilters() {
+      clearSearch();
+      setStatusFilter('ALL');
+    }
+
+    function updateCounter(filteredCount, totalCount) {
+      const el = document.getElementById('counterInfo');
+      if (el) {
+        el.textContent = `총 ${totalCount}권 중 ${filteredCount}권 표시`;
+      }
+    }
+
+    function showLoading(show) {
+      const loading = document.getElementById('loadingState');
+      const grid = document.getElementById('bookGrid');
+      if (show) {
+        loading.classList.remove('hidden');
+        grid.classList.add('hidden');
+      } else {
+        loading.classList.add('hidden');
+      }
+    }
+
+    function hideError() {
+      const errBox = document.getElementById('errorState');
+      if (errBox) errBox.classList.add('hidden');
+    }
+
+    /**
+     * 깔끔한 토스트 메시지 렌더링
+     */
+    function showToast(type, message) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      
+      const isSuccess = (type === 'success');
+      toast.className = `pointer-events-auto flex items-center gap-3 p-4 rounded-xl shadow-xl border text-sm transition-all duration-300 transform translate-y-3 opacity-0 ${
+        isSuccess 
+          ? 'bg-slate-900 text-white border-slate-800' 
+          : 'bg-rose-900 text-white border-rose-800'
+      }`;
+
+      const iconSvg = isSuccess ? `
+        <svg class="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ` : `
+        <svg class="w-5 h-5 text-rose-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      `;
+
+      toast.innerHTML = `
+        ${iconSvg}
+        <span class="flex-1 font-medium leading-tight">${escapeHtml(message)}</span>
+        <button onclick="this.parentElement.remove()" class="text-white/60 hover:text-white ml-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      `;
+
+      container.appendChild(toast);
+
+      // 토스트 애니메이션
+      setTimeout(() => {
+        toast.classList.remove('translate-y-3', 'opacity-0');
+        toast.classList.add('translate-y-0', 'opacity-100');
+      }, 10);
+
+      // 4초 후 자동 제거
+      setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    /**
+     * XSS 방지를 위한 HTML 이스케이프 유틸
+     */
+    function escapeHtml(text) {
+      if (text === null || text === undefined) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>
